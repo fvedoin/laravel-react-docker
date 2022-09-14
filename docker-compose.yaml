@@ -1,0 +1,80 @@
+version: '3.7'
+
+services:
+  nginx:
+    image: nginx:1.22.0
+    container_name: laravel-api-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./backend:/var/www/laravel-api
+      - ./backend/docker/nginx/laravel.conf:/etc/nginx/conf.d/laravel.conf
+    depends_on:
+      - api
+    networks:
+      - net
+
+  api:
+    image: laravel-api
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev-${OS_TYPE:-Linux}
+      args:
+        - GROUP_ID=${GROUP_ID:-1001}
+        - GROUP_NAME=${USER_NAME:-laravel}
+        - USER_ID=${USER_ID:-1001}
+        - USER_NAME=${USER_NAME:-laravel}
+    container_name: backend
+    ports:
+      - "8000:9000"
+    environment:
+      DB_HOST: mysql
+      DB_DATABASE: 'laravel_test'
+      DB_USERNAME: 'root'
+      DB_PASSWORD: 'root'
+    volumes:
+      - ./backend:/var/www/laravel-api
+    depends_on:
+      - mysql
+    networks:
+      - net
+          
+  mysql:
+    image: mysql
+    container_name: mysql
+    hostname: mysql
+    # Como o container não salva nada, os dados do MySQL precisam ser salvos fora dele
+    # volumes:
+      # - ./backend/docker/dbdata:/var/lib/mysql
+    environment:
+      MYSQL_DATABASE: 'laravel_test'
+      MYSQL_PASSWORD: 'root'
+      MYSQL_ROOT_PASSWORD: 'root'
+    ports:
+      - "3306:3306"
+    # Permite a escrita em volumes no Windows 10
+    command:
+      'mysqld --innodb-flush-method=fsync'
+    networks:
+      - net
+
+  frontend:
+    container_name: frontend
+    hostname: frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      REACT_APP_BASEURL: 'http://127.0.0.1'
+    tty: true
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app/frontend
+    depends_on:
+      - api
+
+networks:
+  net:
+    driver: bridge
